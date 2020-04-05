@@ -1,3 +1,4 @@
+# coding=utf-8
 import sys, signal
 import requests
 import os
