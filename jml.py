@@ -157,7 +157,10 @@ def main():
     schedule.every(2).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
 
     while True:
-        schedule.run_pending()
+        try: schedule.run_pending()
+        except:
+            print('Error!')
+            continue
         time.sleep(1)
 
 if __name__ == '__main__':
