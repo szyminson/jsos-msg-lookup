@@ -16,6 +16,34 @@ import imaplib
 import smtplib
 from email.message import EmailMessage
 
+import base64
+from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
+from Crypto import Random
+
+import pickle
+
+def encrypt(key, source, encode=True):
+    key = SHA256.new(key).digest()  # use SHA-256 over our key to get a proper-sized AES key
+    IV = Random.new().read(AES.block_size)  # generate IV
+    encryptor = AES.new(key, AES.MODE_CBC, IV)
+    padding = AES.block_size - len(source) % AES.block_size  # calculate needed padding
+    source += bytes([padding]) * padding  # Python 2.x: source += chr(padding) * padding
+    data = IV + encryptor.encrypt(source)  # store the IV at the beginning and encrypt
+    return base64.b64encode(data).decode("latin-1") if encode else data
+
+def decrypt(key, source, decode=True):
+    if decode:
+        source = base64.b64decode(source.encode("latin-1"))
+    key = SHA256.new(key).digest()  # use SHA-256 over our key to get a proper-sized AES key
+    IV = source[:AES.block_size]  # extract the IV from the beginning
+    decryptor = AES.new(key, AES.MODE_CBC, IV)
+    data = decryptor.decrypt(source[AES.block_size:])  # decrypt
+    padding = data[-1]  # pick the padding value from the end; Python 2.x: ord(data[-1])
+    if data[-padding:] != bytes([padding]) * padding:  # Python 2.x: chr(padding) * padding
+        raise ValueError("Invalid padding...")
+    return data[:-padding]  # remove the padding
+
 def signal_handler(signal, frame):
     raise SystemExit
 
@@ -37,7 +65,7 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
         check_srv = imaplib.IMAP4_SSL('student.pwr.edu.pl', 993)
         check_srv.login(smail_user, smail_pass)
         check_srv.select('INBOX')
-        status, unread = check_srv.search(None, '(SUBJECT "[Edukacja.CL] powiadomienie o otrzymaniu nowego komunikatu" UNSEEN)')
+        _status, unread = check_srv.search(None, '(SUBJECT "[Edukacja.CL] powiadomienie o otrzymaniu nowego komunikatu" UNSEEN)')
     
     if unread[0]:
         s = requests.Session()
@@ -115,7 +143,7 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
             log_msg = 'Emails: not-checked, JSOS messages: ' + str(sent_count)
         else:
             for e_id in unread[0].split():
-                check_srv.store(e_id, '+FLAGS', '\Seen')
+                check_srv.store(e_id, '+FLAGS', r'\Seen')
             log_msg = 'Emails: ' + str(len(unread[0].split())) + ', JSOS messages: ' + str(sent_count)
             check_srv.logout()
     else:
@@ -125,11 +153,13 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
     print(log_msg)
 
 def set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
-    schedule.every(30).seconds.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
-    schedule.every(2).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
+    schedule.every().minute.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
+    schedule.every(3).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
 
 def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
+    print('Setting up scheduler...')
     set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+    print('Scheduler up and running.')
     while True:
         try:
             schedule.run_pending()
@@ -138,12 +168,15 @@ def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
             print("\njml stopping gracefully, bye!")
             sys.exit(0)
         except:
-            print('Error!')
+            print('An error has occured!')
             schedule.clear()
             set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
             continue
 
 def main(): 
+    # Credentials' filename
+    creds_file = '.creds'
+
     if os.path.isfile('./.env'):
         load_dotenv()
 
@@ -156,19 +189,63 @@ def main():
     mode = os.getenv('JMLMODE')
     mode = mode or 'normal'
 
+    # If credentials not provided
     if not (jsos_user and jsos_pass and smail_user and smail_pass):
-        jsos_user = input("JSOS login: ")
-        jsos_pass = getpass.getpass("JSOS password: ")
+        
+        # Check if credentials file exists
+        if os.path.isfile(creds_file):
+            # Load credentials from the file
+            print('Found saved credentials.')
+            cred_key = getpass.getpass('Enter a key to decrypt: ')
+            cred_key = cred_key.encode()
+            cred_in = open(creds_file, 'rb')
+            creds = pickle.load(cred_in)
+            cred_in.close()
 
-        smail_user = input("SMAIL login: ")
-        smail_pass = getpass.getpass("SMAIL password: ")
+            # Decrypt credentials
+            try:
+                jsos_user = decrypt(cred_key, creds['jsosu']).decode()
+                jsos_pass = decrypt(cred_key, creds['jsosp']).decode()
+                smail_user = decrypt(cred_key, creds['smailu']).decode()
+                smail_pass = decrypt(cred_key, creds['smailp']).decode()
+                print('Credentials loaded!')
+            except ValueError:
+                print('Invalid key! Cannot decrypt credentials.')
+                sys.exit(0)
 
-        ask_mode = input("Run in a test mode? (y/n) [n]: ")
+        else:
+            # Ask for credentials
+            jsos_user = input('JSOS login: ')
+            jsos_pass = getpass.getpass('JSOS password: ')
+
+            smail_user = input('SMAIL login: ')
+            smail_pass = getpass.getpass('SMAIL password: ')
+
+            ask_store = input('Do you want to save your credentials? (y/n) [n]: ')
+            if ask_store == 'y':
+                cred_key = getpass.getpass('Enter an encryption key: ')
+                cred_key = cred_key.encode()
+                # Encrypt credentials
+                creds = {
+                    'jsosu': encrypt(cred_key, jsos_user.encode()),
+                    'jsosp': encrypt(cred_key, jsos_pass.encode()),
+                    'smailu': encrypt(cred_key, smail_user.encode()),
+                    'smailp': encrypt(cred_key, smail_pass.encode())
+                }
+                cred_key = None
+
+                # Serialize encrypted credentials to a file
+                cred_out = open(creds_file, 'wb')
+                pickle.dump(creds, cred_out)
+                cred_out.close()
+                print('Credentials encrypted and saved!')
+
+        ask_mode = input('Run in a test mode? (y/n) [n]: ')
         if ask_mode == 'y':
             mode = 'test'
         else:
             mode = 'normal'
-   
+    print('Running in ' + mode + ' mode.')
     run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
 
         
