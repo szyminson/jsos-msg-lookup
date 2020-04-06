@@ -17,8 +17,7 @@ import smtplib
 from email.message import EmailMessage
 
 def signal_handler(signal, frame):
-    print("\nScheduler stopping gracefully, bye!")
-    sys.exit(0)
+    raise SystemExit
 
 def removeAccents(input_text):
 
@@ -125,7 +124,24 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
     log_msg = '[' + now.strftime("%d/%m/%Y %H:%M:%S") + '] ' + log_msg
     print(log_msg)
 
+def set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
+    schedule.every(30).seconds.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
+    schedule.every(2).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
 
+def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
+    set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+    while True:
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except SystemExit:
+            print("\njml stopping gracefully, bye!")
+            sys.exit(0)
+        except:
+            print('Error!')
+            schedule.clear()
+            set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+            continue
 
 def main(): 
     if os.path.isfile('./.env'):
@@ -152,16 +168,10 @@ def main():
             mode = 'test'
         else:
             mode = 'normal'
+   
+    run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
 
-    schedule.every(30).seconds.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
-    schedule.every(2).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
-
-    while True:
-        try: schedule.run_pending()
-        except:
-            print('Error!')
-            continue
-        time.sleep(1)
+        
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
