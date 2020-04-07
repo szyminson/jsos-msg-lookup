@@ -36,4 +36,4 @@ For now you can run jml in 2 modes:
 You can use this mode to verify if jml works well and if given credentials are correct. Every minute you should receive (as test messages) 3 emails with 3 newest (not only unread) retrieved messages from your JSOS inbox. 
 
 ### Normal mode
-In this mode jml does exactly what description says.
+Default mode. Behaviour of jml running this mode is described in description part of this readme.
