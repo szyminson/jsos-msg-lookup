@@ -1,5 +1,7 @@
-# jsos-msg-lookup
+# JSOS message lookup
 Read JSOS messages straight in your email client!
+## Description
+JSOS message lookup aka *jml* checks your SMAIL inbox every minute using imap ssl and python scheduler. If there is an **unread** (important!) email from Edukacja.CL about a new message waiting for you on JSOS jml logs into your JSOS account just like you would do it in your browser (using HTTP requests) and retireves new message's title, body and author. Then a new email message containing all retrieved data is sent to your SMAIL inbox.  
 
 ## Usage
 ### The most secure way
