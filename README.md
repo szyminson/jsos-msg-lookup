@@ -10,4 +10,4 @@ After providing jml with your credentials you will be asked if you want to save 
 Delete `.creds` file from jml's directory.
 
 ### Less secure but easier to automate way
-You can optionally provide jml with your credentials using environment variables. Just use `.env` file or export your env variables before running jml.
+You can optionally provide jml with your credentials using environment variables. Place `.env` file constructed as in `.env.example` in jml's directory or export your env variables before running jml.
