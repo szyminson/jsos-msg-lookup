@@ -8,10 +8,17 @@ JSOS message lookup aka *jml* checks your SMAIL inbox every minute using SSL IMA
 Tested on Python `3.6.9` and `3.7.3`. 
 
 #### Note
-Remember to install required packages before running jml -> `pip3 install -r requirements.txt`.
+Remember to install required packages before running jml: 
+```
+$ pip3 install -r requirements.txt
+```
 
 ### The most secure way
-Just simply run the `python3 jml.py`. It will ask you for your JSOS and SMAIL credentials.
+Just run jml:
+```
+$ python3 jml.py
+```
+It will ask you for your JSOS and SMAIL credentials.
 
 #### Saving ecnrypted credentials
 After providing jml with your credentials you will be asked if you want to save your credentials. If you decide to do it, you'll be prompted to provide an encryption key. AES256 CBC is used for encryption. Next time you run the jml it will only ask you for the encryption key to decrypt stored credentials. 
@@ -26,7 +33,7 @@ You can optionally provide jml with your credentials using environment variables
 For now you can run jml in 2 modes:
 
 ### Test mode
-You can use this mode to verify if jml works well and if given credentials are correct. Every minute you should recieve (as test messages) 3 emails with 3 newest (not only unread) retrieved messages from your JSOS inbox. 
+You can use this mode to verify if jml works well and if given credentials are correct. Every minute you should receive (as test messages) 3 emails with 3 newest (not only unread) retrieved messages from your JSOS inbox. 
 
 ### Normal mode
 In this mode jml does exactly what description says.
