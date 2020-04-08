@@ -252,7 +252,8 @@ def main():
     smail_pass = os.getenv('SMAILP')
 
     mode = os.getenv('JMLMODE')
-    mode = mode or 'normal'
+    if not mode == 'test':
+        mode = 'normal'
 
     # Check if credentials retrieved from ENV variables
     if jsos_user and jsos_pass and smail_user and smail_pass:
