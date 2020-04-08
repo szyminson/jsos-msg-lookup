@@ -33,7 +33,7 @@ You can optionally provide jml with your credentials using environment variables
 For now you can run jml in 2 modes:
 
 ### Test mode
-You can use this mode to verify if jml works well and if given credentials are correct. Every minute you should receive (as test messages) 3 emails with 3 newest (not only unread) retrieved messages from your JSOS inbox. 
+You can use this mode to verify if jml works well and to get sample emails. Every minute you should receive (as test messages) 3 emails with 3 newest (not only unread) retrieved messages from your JSOS inbox. 
 
 ### Normal mode
 Default mode. Behaviour of jml running this mode is described in *Description* part of this readme.
