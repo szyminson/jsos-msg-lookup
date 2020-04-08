@@ -62,6 +62,13 @@ def removeAccents(input_text):
     return input_text.translate(translator)
 
 
+def add_smail_domain(smail_user):
+    domain = '@student.pwr.edu.pl'
+    if smail_user.find(domain) < 0:
+        smail_user = smail_user + domain
+    return smail_user
+
+
 def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
     creds_valid = {'jsos': False, 'smail': True}
     srv_ok = {'jsos': True, 'smail': True}
@@ -248,6 +255,7 @@ def main():
     # Check if credentials retrieved from ENV variables
     if jsos_user and jsos_pass and smail_user and smail_pass:
         # Check credentials
+            smail_user = add_smail_domain(smail_user)
             print('Checking credentials...')
             chck_cred = check_credentials(jsos_user, jsos_pass, smail_user, smail_pass)
             if chck_cred['srv_ok']['jsos'] and chck_cred['srv_ok']['smail']:
@@ -294,7 +302,7 @@ def main():
             jsos_user = input('JSOS login: ')
             jsos_pass = getpass.getpass('JSOS password: ')
 
-            smail_user = input('SMAIL login: ')
+            smail_user = add_smail_domain(input('SMAIL login: '))
             smail_pass = getpass.getpass('SMAIL password: ')
 
             # Check credentials
