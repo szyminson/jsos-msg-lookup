@@ -1,5 +1,5 @@
 # coding=utf-8
-import sys, signal
+import signal
 import requests
 import os
 from dotenv import load_dotenv
@@ -23,6 +23,7 @@ from Crypto import Random
 
 import pickle
 
+
 def encrypt(key, source, encode=True):
     key = SHA256.new(key).digest()  # use SHA-256 over our key to get a proper-sized AES key
     IV = Random.new().read(AES.block_size)  # generate IV
@@ -31,6 +32,7 @@ def encrypt(key, source, encode=True):
     source += bytes([padding]) * padding  # Python 2.x: source += chr(padding) * padding
     data = IV + encryptor.encrypt(source)  # store the IV at the beginning and encrypt
     return base64.b64encode(data).decode("latin-1") if encode else data
+
 
 def decrypt(key, source, decode=True):
     if decode:
@@ -44,8 +46,10 @@ def decrypt(key, source, decode=True):
         raise ValueError("Invalid padding...")
     return data[:-padding]  # remove the padding
 
+
 def signal_handler(signal, frame):
     raise SystemExit
+
 
 def removeAccents(input_text):
 
@@ -56,6 +60,55 @@ def removeAccents(input_text):
     translator=str.maketrans(strange,ascii_replacements)
 
     return input_text.translate(translator)
+
+
+def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
+    creds_valid = {'jsos': False, 'smail': True}
+    srv_ok = {'jsos': True, 'smail': True}
+    try:
+        check_srv = imaplib.IMAP4_SSL('student.pwr.edu.pl', 993)
+    except:
+        srv_ok['smail'] = False
+        creds_valid['smail'] = False
+
+    if srv_ok['smail']:
+        try:
+            check_srv.login(smail_user, smail_pass)
+        except:
+            creds_valid['smail'] = False
+        check_srv.logout()
+
+    try:
+        s = requests.Session()
+        login_url = 'https://jsos.pwr.edu.pl/index.php/site/loginAsStudent'
+        r = s.get(login_url)
+        redirect_url = r.url
+        parsed = urlparse.urlparse(redirect_url)
+        tokens = dict(parse_qsl(parsed.query))
+
+        post_url = 'https://oauth.pwr.edu.pl/oauth/authenticate?0-1.IFormSubmitListener-authenticateForm&' + urlparse.urlencode(tokens)
+
+        post_static = {'authenticateButton': 'Zaloguj',
+                    'oauth_callback_url': 'https://jsos.pwr.edu.pl/index.php/site/loginAsStudent',
+                    'oauth_request_url': 'http://oauth.pwr.edu.pl/oauth/authenticate',
+                    'oauth_symbol': 'EIS',
+                    'id1_hf_0': ''}
+
+        post_credentials = {'username': jsos_user, 'password': jsos_pass}
+
+        form_data = post_static
+        form_data.update(tokens)
+        form_data.update(post_credentials)
+
+        r = s.post(post_url, form_data)
+        if(r.url == 'https://jsos.pwr.edu.pl/index.php/student/indeksDane'):
+            creds_valid['jsos'] = True
+
+    except:
+        srv_ok['jsos'] = False
+    
+    return {'srv_ok': srv_ok, 'creds_valid': creds_valid}
+
 
 def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_anyways):
 
@@ -152,9 +205,11 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
     log_msg = '[' + now.strftime("%d/%m/%Y %H:%M:%S") + '] ' + log_msg
     print(log_msg)
 
+
 def set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
     schedule.every().minute.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
     schedule.every(3).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
+
 
 def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
     print('Setting up scheduler...')
@@ -166,12 +221,13 @@ def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
             time.sleep(1)
         except SystemExit:
             print("\njml stopping gracefully, bye!")
-            sys.exit(0)
+            raise SystemExit
         except:
             print('An error has occured!')
             schedule.clear()
             set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
             continue
+
 
 def main(): 
     # Credentials' filename
@@ -189,9 +245,29 @@ def main():
     mode = os.getenv('JMLMODE')
     mode = mode or 'normal'
 
-    # If credentials not provided
-    if not (jsos_user and jsos_pass and smail_user and smail_pass):
-        
+    # Check if credentials retrieved from ENV variables
+    if jsos_user and jsos_pass and smail_user and smail_pass:
+        # Check credentials
+            print('Checking credentials...')
+            chck_cred = check_credentials(jsos_user, jsos_pass, smail_user, smail_pass)
+            if chck_cred['srv_ok']['jsos'] and chck_cred['srv_ok']['smail']:
+                if chck_cred['creds_valid']['jsos'] and chck_cred['creds_valid']['smail']:
+                    print('Credentials OK.')
+                else:
+                    if not chck_cred['creds_valid']['jsos']:
+                        print('Invalid JSOS credentials!')
+                    if not chck_cred['creds_valid']['smail']:
+                        print('Invalid SMAIL credentials!')
+                    print('Bye.')
+                    raise SystemExit
+            else:
+                if not chck_cred['srv_ok']['jsos']:
+                    print('JSOS not accessible!')
+                if not chck_cred['srv_ok']['smail']:
+                    print('Email server not accessible!')
+                print('Bye.')
+                raise SystemExit
+    else:
         # Check if credentials file exists
         if os.path.isfile(creds_file):
             # Load credentials from the file
@@ -210,8 +286,8 @@ def main():
                 smail_pass = decrypt(cred_key, creds['smailp']).decode()
                 print('Credentials loaded!')
             except ValueError:
-                print('Invalid key! Cannot decrypt credentials.')
-                sys.exit(0)
+                print('Invalid key! Cannot decrypt credentials, bye!')
+                raise SystemExit
 
         else:
             # Ask for credentials
@@ -220,6 +296,27 @@ def main():
 
             smail_user = input('SMAIL login: ')
             smail_pass = getpass.getpass('SMAIL password: ')
+
+            # Check credentials
+            print('Checking credentials...')
+            chck_cred = check_credentials(jsos_user, jsos_pass, smail_user, smail_pass)
+            if chck_cred['srv_ok']['jsos'] and chck_cred['srv_ok']['smail']:
+                if chck_cred['creds_valid']['jsos'] and chck_cred['creds_valid']['smail']:
+                    print('Credentials OK.')
+                else:
+                    if not chck_cred['creds_valid']['jsos']:
+                        print('Invalid JSOS credentials!')
+                    if not chck_cred['creds_valid']['smail']:
+                        print('Invalid SMAIL credentials!')
+                    print('Bye.')
+                    raise SystemExit
+            else:
+                if not chck_cred['srv_ok']['jsos']:
+                    print('JSOS not accessible!')
+                if not chck_cred['srv_ok']['smail']:
+                    print('Email server not accessible!')
+                print('Bye.')
+                raise SystemExit
 
             ask_store = input('Do you want to save your credentials? (y/n) [n]: ')
             if ask_store == 'y':
@@ -247,9 +344,7 @@ def main():
             mode = 'normal'
     print('Running in ' + mode + ' mode.')
     run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
-
-        
-
+     
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
