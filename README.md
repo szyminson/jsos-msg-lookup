@@ -29,7 +29,7 @@ Delete `.creds` file from jml's directory.
 ### Less secure but easier to automate way
 You can optionally provide jml with your credentials using environment variables. Place `.env` file constructed as `.env.example` shows in jml's directory or export your env variables before running jml.
 
-## Credentials loading order
+## Credentials importing order
 Importance hierachy:
 ```
 environment variables > .env file > .creds file > ask for credentials
