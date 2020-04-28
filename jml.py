@@ -71,7 +71,7 @@ def add_smail_domain(smail_user):
     return smail_user
 
 
-def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
+def check_credentials(settings):
     creds_valid = {'jsos': False, 'smail': True}
     srv_ok = {'jsos': True, 'smail': True}
     try:
@@ -82,7 +82,7 @@ def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
 
     if srv_ok['smail']:
         try:
-            check_srv.login(smail_user, smail_pass)
+            check_srv.login(settings['smail_user'], settings['smail_pass'])
         except:
             creds_valid['smail'] = False
         check_srv.logout()
@@ -103,7 +103,7 @@ def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
                     'oauth_symbol': 'EIS',
                     'id1_hf_0': ''}
 
-        post_credentials = {'username': jsos_user, 'password': jsos_pass}
+        post_credentials = {'username': settings['jsos_user'], 'password': settings['jsos_pass']}
 
         form_data = post_static
         form_data.update(tokens)
@@ -119,13 +119,13 @@ def check_credentials(jsos_user, jsos_pass, smail_user, smail_pass):
     return {'srv_ok': srv_ok, 'creds_valid': creds_valid}
 
 
-def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_anyways):
+def msg_lookup(settings, check_jsos_anyways):
 
-    if (check_jsos_anyways or mode == 'test'):
+    if (check_jsos_anyways or settings['mode'] == 'test'):
         unread = [True]
     else:
         check_srv = imaplib.IMAP4_SSL('student.pwr.edu.pl', 993)
-        check_srv.login(smail_user, smail_pass)
+        check_srv.login(settings['smail_user'], settings['smail_pass'])
         check_srv.select('INBOX')
         _status, unread = check_srv.search(None, '(SUBJECT "[Edukacja.CL] powiadomienie o otrzymaniu nowego komunikatu" UNSEEN)')
     
@@ -146,7 +146,7 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
                     'oauth_symbol': 'EIS',
                     'id1_hf_0': ''}
 
-        post_credentials = {'username': jsos_user, 'password': jsos_pass}
+        post_credentials = {'username': settings['jsos_user'], 'password': settings['jsos_pass']}
 
         form_data = post_static
         form_data.update(tokens)
@@ -158,7 +158,7 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
         r = s.get(inbox_url)
 
         soup1 = BeautifulSoup(r.text, 'html.parser')
-        if mode == 'test':
+        if settings['mode'] == 'test':
             msgs = soup1.find_all('tr')
         else:
             msgs = soup1.find_all('tr', class_='unread')
@@ -167,12 +167,12 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
         if msgs:
             send_srv = smtplib.SMTP('student.pwr.edu.pl', 587)
             send_srv.starttls()
-            send_srv.login(smail_user, smail_pass)
+            send_srv.login(settings['smail_user'], settings['smail_pass'])
 
             for msg in msgs:
                 msg_url = msg.get('data-url')
                 
-                if msg_url and not (mode == 'test' and sent_count > 2):
+                if msg_url and not (settings['mode'] == 'test' and sent_count > 2):
                     r = s.get('https://jsos.pwr.edu.pl' + msg_url)
                     soup2 = BeautifulSoup(r.text, 'html.parser')
                     msg_content = soup2.find('div', id='podgladWiadomosci')
@@ -185,23 +185,34 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
                     else:
                         msg_author_email = removeAccents(msg_author_split[1] + '.' + msg_author_split[0]).lower() + '@pwr.edu.pl'
                         
-                    msg_title = '[JSOS] ' + msg_content.find('h4').text.replace('Temat - ', '')
+                    msg_title = msg_content.find('h4').text.replace('Temat - ', '')
                     msg_body = msg_content.find('div').text.replace('Treść wiadomości', '').replace('\n', '', 5)
 
-                    email_msg = EmailMessage()
-                    email_msg.set_content(msg_body)
+                    if settings['mode'] == 'webhook' or (settings['mode'] == 'test' and settings['webhook']):
+                        msg_json = {
+                            "author": msg_author,
+                            "author_email": msg_author_email,
+                            "title": msg_title,
+                            "body": msg_body,
+                            "msg": msg_author + "\n*" + msg_title + "*\n\n" + msg_body + "\n___"
+                        }
+                        r = requests.post(settings['webhook'], json=msg_json)
 
-                    email_msg['Subject'] = msg_title
-                    email_msg['From'] = msg_author + ' <jsos-noreply@student.pwr.edu.pl>'
-                    email_msg['Reply-to'] = msg_author_email
-                    email_msg['To'] = smail_user
+                    if settings['mode'] == 'normal' or settings['mode'] == 'test':
+                        email_msg = EmailMessage()
+                        email_msg.set_content(msg_body)
 
-                    send_srv.send_message(email_msg)
+                        email_msg['Subject'] = '[JSOS] ' + msg_title
+                        email_msg['From'] = msg_author + ' <jsos-noreply@student.pwr.edu.pl>'
+                        email_msg['Reply-to'] = msg_author_email
+                        email_msg['To'] = settings['smail_user']
+
+                        send_srv.send_message(email_msg)
                     sent_count += 1
 
             send_srv.quit()                
 
-        if check_jsos_anyways or mode == 'test':
+        if check_jsos_anyways or settings['mode'] == 'test':
             log_msg = 'Emails: not-checked, JSOS messages: ' + str(sent_count)
         else:
             for e_id in unread[0].split():
@@ -215,14 +226,14 @@ def msg_lookup(jsos_user, jsos_pass, smail_user, smail_pass, mode, check_jsos_an
     print(log_msg)
 
 
-def set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
-    schedule.every().minute.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, False)
-    schedule.every(3).hours.do(msg_lookup, jsos_user, jsos_pass, smail_user, smail_pass, mode, True)
+def set_scheduler(settings):
+    schedule.every().minute.do(msg_lookup, settings, False)
+    schedule.every(3).hours.do(msg_lookup, settings, True)
 
 
-def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
+def run_scheduler(settings):
     print('Setting up scheduler...')
-    set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+    set_scheduler(settings)
     print('Scheduler up and running.')
     while True:
         try:
@@ -234,33 +245,43 @@ def run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode):
         except:
             print('An error has occured!')
             schedule.clear()
-            set_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+            set_scheduler(settings)
             continue
 
 
 def main(): 
     # Credentials' filename
     creds_file = '.creds'
+    settings = {}
+    modes = {
+        'n': 'normal',
+        't': 'test',
+        'w': 'webhook'
+    }
 
     if os.path.isfile('./.env'):
         load_dotenv()
 
-    jsos_user = os.getenv('JSOSU')
-    jsos_pass = os.getenv('JSOSP')
+    settings['jsos_user'] = os.getenv('JSOSU')
+    settings['jsos_pass'] = os.getenv('JSOSP')
 
-    smail_user = os.getenv('SMAILU')
-    smail_pass = os.getenv('SMAILP')
+    settings['smail_user'] = os.getenv('SMAILU')
+    settings['smail_pass'] = os.getenv('SMAILP')
 
-    mode = os.getenv('JMLMODE')
-    if not mode == 'test':
-        mode = 'normal'
+    settings['mode'] = os.getenv('JMLMODE')
+    if not settings['mode'] == modes['t'] and not settings['mode'] == modes['w']:
+        settings['mode'] = modes['n']
+
+    settings['webhook'] = os.getenv('JMLWEBHOOK')
+    if not settings['webhook']:
+        settings['webhook'] = False
 
     # Check if credentials retrieved from ENV variables
-    if jsos_user and jsos_pass and smail_user and smail_pass:
+    if settings['jsos_user'] and settings['jsos_pass'] and settings['smail_user'] and settings['smail_pass']:
         # Check credentials
-            smail_user = add_smail_domain(smail_user)
+            settings['smail_user'] = add_smail_domain(settings['smail_user'])
             print('Checking credentials...')
-            chck_cred = check_credentials(jsos_user, jsos_pass, smail_user, smail_pass)
+            chck_cred = check_credentials(settings)
             if chck_cred['srv_ok']['jsos'] and chck_cred['srv_ok']['smail']:
                 if chck_cred['creds_valid']['jsos'] and chck_cred['creds_valid']['smail']:
                     print('Credentials OK.')
@@ -291,26 +312,29 @@ def main():
 
             # Decrypt credentials
             try:
-                jsos_user = decrypt(cred_key, creds['jsosu']).decode()
-                jsos_pass = decrypt(cred_key, creds['jsosp']).decode()
-                smail_user = decrypt(cred_key, creds['smailu']).decode()
-                smail_pass = decrypt(cred_key, creds['smailp']).decode()
+                settings['jsos_user'] = decrypt(cred_key, creds['jsosu']).decode()
+                settings['jsos_pass'] = decrypt(cred_key, creds['jsosp']).decode()
+                settings['smail_user'] = decrypt(cred_key, creds['smailu']).decode()
+                settings['smail_pass'] = decrypt(cred_key, creds['smailp']).decode()
+                if creds['webhook']:
+                    settings['webhook'] = decrypt(cred_key, creds['webhook']).decode()
                 print('Credentials loaded!')
             except ValueError:
                 print('Invalid key! Cannot decrypt credentials, bye!')
                 raise SystemExit
+            cred_key = None
 
         else:
             # Ask for credentials
-            jsos_user = input('JSOS login: ')
-            jsos_pass = getpass.getpass('JSOS password: ')
+            settings['jsos_user'] = input('JSOS login: ')
+            settings['jsos_pass'] = getpass.getpass('JSOS password: ')
 
-            smail_user = add_smail_domain(input('SMAIL login: '))
-            smail_pass = getpass.getpass('SMAIL password: ')
+            settings['smail_user'] = add_smail_domain(input('SMAIL login: '))
+            settings['smail_pass'] = getpass.getpass('SMAIL password: ')
 
             # Check credentials
             print('Checking credentials...')
-            chck_cred = check_credentials(jsos_user, jsos_pass, smail_user, smail_pass)
+            chck_cred = check_credentials(settings)
             if chck_cred['srv_ok']['jsos'] and chck_cred['srv_ok']['smail']:
                 if chck_cred['creds_valid']['jsos'] and chck_cred['creds_valid']['smail']:
                     print('Credentials OK.')
@@ -329,17 +353,29 @@ def main():
                 print('Bye.')
                 raise SystemExit
 
+            if not settings['webhook']:
+                ask_webhook = input('Do you want to add a webhook? (y/n) [n]: ')
+                if ask_webhook == 'y':
+                    settings['webhook'] = input('Webhook URL: ')
+            else:
+                print('Webhook loaded from ENV.')
+                print('Webhook URL: ' + settings['webhook'])
+
             ask_store = input('Do you want to save your credentials? (y/n) [n]: ')
             if ask_store == 'y':
                 cred_key = getpass.getpass('Enter an encryption key: ')
                 cred_key = cred_key.encode()
                 # Encrypt credentials
                 creds = {
-                    'jsosu': encrypt(cred_key, jsos_user.encode()),
-                    'jsosp': encrypt(cred_key, jsos_pass.encode()),
-                    'smailu': encrypt(cred_key, smail_user.encode()),
-                    'smailp': encrypt(cred_key, smail_pass.encode())
+                    'jsosu': encrypt(cred_key, settings['jsos_user'].encode()),
+                    'jsosp': encrypt(cred_key, settings['jsos_pass'].encode()),
+                    'smailu': encrypt(cred_key, settings['smail_user'].encode()),
+                    'smailp': encrypt(cred_key, settings['smail_pass'].encode()),
+                    'webhook': False
                 }
+                if settings['webhook']:
+                    creds['webhook'] = encrypt(cred_key, settings['webhook'].encode())
+                
                 cred_key = None
 
                 # Serialize encrypted credentials to a file
@@ -347,14 +383,20 @@ def main():
                 pickle.dump(creds, cred_out)
                 cred_out.close()
                 print('Credentials encrypted and saved!')
+        
+        webhook_option = ''
+        if settings['webhook']:
+            webhook_option = '/[w]ebhook'
 
-        ask_mode = input('Run in a test mode? (y/n) [n]: ')
-        if ask_mode == 'y':
-            mode = 'test'
-        else:
-            mode = 'normal'
-    print('Running in ' + mode + ' mode.')
-    run_scheduler(jsos_user, jsos_pass, smail_user, smail_pass, mode)
+        ask_mode = input('Select mode [n]ormal/[t]est' + webhook_option + ' [' + settings['mode'][0] + ']: ')
+        settings['mode'] = modes.get(ask_mode, settings['mode'])
+
+    if settings['mode'] == modes['w'] and not settings['webhook']:
+        print('Webhook not provided. Cannot run in webhook mode, bye!')
+        raise SystemExit
+        
+    print('Running in ' + settings['mode'] + ' mode.')
+    run_scheduler(settings)
      
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
