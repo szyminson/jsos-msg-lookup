@@ -292,14 +292,14 @@ def clear_error_count(errors):
 
 def set_scheduler(settings, errors):
     schedule.clear()
-    schedule.every(10).seconds.do(msg_lookup, settings, errors, False)
+    schedule.every().minute.do(msg_lookup, settings, errors, False)
     schedule.every(3).hours.do(msg_lookup, settings, errors, True)
 
 
 def run_scheduler(settings):
     errors = {
         'count': 0,
-        'alert_at': 3,
+        'alert_at': 10,
         'alert_sent': False
     }
     print('Setting up scheduler...')
