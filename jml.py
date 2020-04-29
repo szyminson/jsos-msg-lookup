@@ -25,6 +25,26 @@ from Crypto import Random
 
 import pickle
 
+# define Python user-defined exceptions
+class Alert(Exception):
+   """Base class for alert exceptions"""
+   pass
+
+class ErrorAlert(Alert):
+   """Raised when error alert is sent"""
+   pass
+
+class WorkingAlert(Alert):
+   """Raised when working alert is sent"""
+   pass
+
+class NotSentAlert(Alert):
+   """Raised when alert could not be sent"""
+   pass
+
+class ErrorCountException(Exception):
+    """Raised when error count is not equal 0 after successful msg lookup"""
+    pass
 
 def encrypt(key, source, encode=True):
     key = SHA256.new(key).digest()  # use SHA-256 over our key to get a proper-sized AES key
@@ -119,7 +139,8 @@ def check_credentials(settings):
     return {'srv_ok': srv_ok, 'creds_valid': creds_valid}
 
 
-def msg_lookup(settings, check_jsos_anyways):
+def msg_lookup(settings, errors, check_jsos_anyways):
+    send_alert(settings['webhook'], errors)
 
     if (check_jsos_anyways or settings['mode'] == 'test'):
         unread = [True]
@@ -190,6 +211,7 @@ def msg_lookup(settings, check_jsos_anyways):
 
                     if settings['mode'] == 'webhook' or (settings['mode'] == 'test' and settings['webhook']):
                         msg_json = {
+                            "type": "message",
                             "author": msg_author,
                             "author_email": msg_author_email,
                             "title": msg_title,
@@ -224,29 +246,106 @@ def msg_lookup(settings, check_jsos_anyways):
     now = datetime.now()
     log_msg = '[' + now.strftime("%d/%m/%Y %H:%M:%S") + '] ' + log_msg
     print(log_msg)
+    clear_error_count(errors['count'])
 
+def webhook_alert(webhook, error_count):
+    if error_count < 0:
+        title = "[jml] Working again."
+        body = "It looks like your jml is fine and working again. Enjoy!"
+    else:
+        title = "[jml] Error alert!"
+        body = "Your jml was not able to check or deliver new JSOS messages for last " + str(error_count) + " attempts. Perhaps one of pwr's services (JSOS or SMAIL) is not working properly or your jml's host lost an internet connection for a while. Go to https://edukacja.pwr.wroc.pl/ to check messages manually."
+    json = {
+        "type": "alert",
+        "author": "jml",
+        "author_email": "None",
+        "title": title,
+        "body": body,
+        "errors": error_count,
+        "msg": "*" + title + "*\n" + body + "\n___"
+    }
+    return json
 
-def set_scheduler(settings):
-    schedule.every().minute.do(msg_lookup, settings, False)
-    schedule.every(3).hours.do(msg_lookup, settings, True)
+def send_alert(webhook, errors):
+    if errors['count'] >= errors['alert_at'] and webhook:
+        print('Reached ' + str(errors['alert_at']) + ' errors in a row. Sending an alert...')
+        try:
+            requests.post(webhook, json=webhook_alert(webhook, errors['count']))
+        except:
+            print('Could not send the alert, check your internet connection.')
+            raise NotSentAlert
+        print('Alert sent.')
+        raise ErrorAlert
+
+    if errors['count'] < 0 and webhook:
+        print('Working fine again. Sending alert...')
+        try:
+            requests.post(webhook, json=webhook_alert(webhook, errors['count']))
+        except:
+            print('Could not send the alert, check your internet connection.')
+            raise NotSentAlert
+        print('Alert sent.')
+        raise WorkingAlert
+
+def clear_error_count(errors):
+        raise ErrorCountException
+
+def set_scheduler(settings, errors):
+    schedule.clear()
+    schedule.every(10).seconds.do(msg_lookup, settings, errors, False)
+    schedule.every(3).hours.do(msg_lookup, settings, errors, True)
 
 
 def run_scheduler(settings):
+    errors = {
+        'count': 0,
+        'alert_at': 3,
+        'alert_sent': False
+    }
     print('Setting up scheduler...')
-    set_scheduler(settings)
+    set_scheduler(settings, errors)
     print('Scheduler up and running.')
+    
     while True:
         try:
             schedule.run_pending()
             time.sleep(1)
+
         except SystemExit:
             print("\njml stopping gracefully, bye!")
             raise SystemExit
-        except:
-            print('An error has occured!')
-            schedule.clear()
-            set_scheduler(settings)
+        
+        except ErrorAlert:
+            errors['count'] = 0
+            errors['alert_sent'] = True
+            set_scheduler(settings, errors)
             continue
+
+        except WorkingAlert:
+            errors['count'] = 0
+            errors['alert_sent'] = False
+            set_scheduler(settings, errors)
+
+        except NotSentAlert:
+            set_scheduler(settings, errors)
+            continue
+
+        except ErrorCountException:
+            if(errors['alert_sent']):
+                errors['count'] = -1
+            else:
+                errors['count'] = 0
+            set_scheduler(settings, errors)
+            continue
+
+        except Exception as e:
+            print('An error has occured: ' + type(e).__name__)
+            errors['count'] = errors['count'] + 1
+            set_scheduler(settings, errors)
+            continue
+        
+        
+
 
 
 def main(): 
