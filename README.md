@@ -70,7 +70,7 @@ For now you can run jml in 3 modes:
 You can use this mode to verify if jml works well and to get sample emails. Every minute you should receive (as test messages) 3 emails with 3 newest (not only unread) messages retrieved from your JSOS inbox. 
 
 ###  4.2. <a name='Normalmode'></a>Normal mode
-Default mode. Behaviour of jml running this mode is described in [*Description*](#Description) part of this readme. If you provide jml with a webhook, additional alerts will be sent to webhook's URL. More about alerts [here](#Alerts).
+Default mode. Behaviour of jml running this mode is described in [*Description*](#Description) part of this readme. If you provide jml with a webhook, additional alerts will be sent to webhook's URL. More about alerts [here](#Webhooksandalerts).
 
 ###  4.3. <a name='Webhookmode'></a>Webhook mode
 Want to receive JSOS messages in json format? Got you covered! In this mode all messages are sent along with alerts to provided webhook's URL instead of email. Sky is the limit! You can use an existing messaging app with webhook functionality (I personally recommend [Keybase](https://keybase.io)) or create your own app to process received data.
