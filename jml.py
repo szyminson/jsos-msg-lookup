@@ -246,7 +246,7 @@ def msg_lookup(settings, errors, check_jsos_anyways):
     now = datetime.now()
     log_msg = '[' + now.strftime("%d/%m/%Y %H:%M:%S") + '] ' + log_msg
     print(log_msg)
-    clear_error_count(errors['count'])
+    clear_error_count(errors)
 
 def webhook_alert(webhook, error_count):
     if error_count < 0:
@@ -288,12 +288,13 @@ def send_alert(webhook, errors):
         raise WorkingAlert
 
 def clear_error_count(errors):
+    if errors['count'] > 0 or errors['alert_sent']:
         raise ErrorCountException
 
 def set_scheduler(settings, errors):
     schedule.clear()
     schedule.every().minute.do(msg_lookup, settings, errors, False)
-    schedule.every(3).hours.do(msg_lookup, settings, errors, True)
+    schedule.every(2).hours.do(msg_lookup, settings, errors, True)
 
 
 def run_scheduler(settings):
@@ -343,10 +344,6 @@ def run_scheduler(settings):
             errors['count'] = errors['count'] + 1
             set_scheduler(settings, errors)
             continue
-        
-        
-
-
 
 def main(): 
     # Credentials' filename
