@@ -1,0 +1,5 @@
+#!/data/data/com.termux/files/usr/bin/sh
+termux-wake-lock
+cd /data/data/com.termux/files/home/jml
+tmux new-session -d -s 'jml' ./jml.py
+termux-notification --content "jml started in tmux in termux!" --priority high --action "am start --user 0 -n com.termux/com.termux.app.TermuxActivity"
