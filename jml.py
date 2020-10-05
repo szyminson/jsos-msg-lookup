@@ -457,8 +457,8 @@ def main():
                 print('Webhook loaded from ENV.')
                 print('Webhook URL: ' + settings['webhook'])
 
-            ask_store = input('Do you want to save your credentials? (y/n) [n]: ')
-            if ask_store == 'y':
+            ask_store = input('Do you want to encrypt and save your credentials? (y/n) [y]: ')
+            if ask_store != 'n':
                 cred_key = getpass.getpass('Enter an encryption key: ')
                 cred_key = cred_key.encode()
                 # Encrypt credentials
@@ -472,6 +472,7 @@ def main():
                 if settings['webhook']:
                     creds['webhook'] = encrypt(cred_key, settings['webhook'].encode())
                 
+                # Unset encryption key variable after encrypting credentials
                 cred_key = None
 
                 # Serialize encrypted credentials to a file

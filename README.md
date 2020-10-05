@@ -8,6 +8,9 @@ Read JSOS messages straight from your email client!
 		* 2.1.1. [Saving ecnrypted credentials](#Savingecnryptedcredentials)
 		* 2.1.2. [Deleting saved credentials](#Deletingsavedcredentials)
 	* 2.2. [Less secure but easier to automate way](#Lesssecurebuteasiertoautomateway)
+	* 2.3. [Termux usage](#Termuxusage)
+		* 2.3.1. [Install Termux](#InstallTermux)
+		* 2.3.2. [Install jml](#Installjml)
 * 3. [Credentials importing order](#Credentialsimportingorder)
 	* 3.1. [Example](#Example)
 * 4. [Modes](#Modes)
@@ -55,6 +58,29 @@ Delete `.creds` file from jml's directory.
 ###  2.2. <a name='Lesssecurebuteasiertoautomateway'></a>Less secure but easier to automate way
 You can optionally provide jml with your credentials using environment variables. Place `.env` file constructed as `.env.example` shows in jml's directory or export your env variables before running jml.
 
+###  2.3. <a name='Termuxusage'></a>Termux usage
+####  2.3.1. <a name='InstallTermux'></a>Install Termux
+Install `Termux` along with `Termux:API` and `Termux:Boot`. Please keep in mind that in order to get `Termux` and its plugins to work together flawlessly you have to install them from the same app store (Google Play or F-Droid). 
+* Termux [Google Play](https://play.google.com/store/apps/details?id=com.termux) (Free) | [F-Droid](https://f-droid.org/packages/com.termux/) (Free),
+* Termux:API [Google Play](https://play.google.com/store/apps/details?id=com.termux.api) (Free) | [F-Droid](https://f-droid.org/packages/com.termux.api/) (Free) - Required for installation script,
+
+* Termux:Boot [Google Play](https://play.google.com/store/apps/details?id=com.termux.boot) (Paid) | [F-Droid](https://f-droid.org/packages/com.termux.boot/) (Free) - Required for installation script.
+
+
+####  2.3.2. <a name='Installjml'></a>Install jml
+##### Manually
+Just clone this github repo and do whatever you want. You don't need to install `Termux:API` and `Termux:Boot` to just run jml as a python script.
+##### Via installation script
+Below command runs an installation script that will download jml and setup auto boot so you won't have to run jml manually each time your battery dies. Run `Termux:Boot` once to enable its features and then open `Termux` and paste this command:
+
+```
+curl -O https://raw.githubusercontent.com/szyminson/jsos-msg-lookup/master/termux-install.sh & sh termux-install.sh
+```
+To access running jml after your phone's restart wait for the notification: 
+```
+jml started in tmux in termux!
+```
+and tap on it. Then run `tmux attach` command and you should see jml running. 
 ##  3. <a name='Credentialsimportingorder'></a>Credentials importing order
 Importance hierachy:
 ```
