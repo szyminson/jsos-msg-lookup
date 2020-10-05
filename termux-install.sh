@@ -16,5 +16,5 @@ cp termux-boot-jml ~/.termux/boot
 
 # Done
 echo "Done! Starting jml..."
-./jml.py
+sh jml.py
 
