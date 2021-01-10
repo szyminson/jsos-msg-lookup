@@ -145,9 +145,9 @@ def msg_lookup(settings, errors, check_jsos_anyways):
     if (check_jsos_anyways or settings['mode'] == 'test'):
         unread = [True]
     else:
-        check_srv = imaplib.IMAP4_SSL('student.pwr.edu.pl', 993)
+        check_srv = imaplib.IMAP4_SSL('imap.gmail.com', 993)
         check_srv.login(settings['smail_user'], settings['smail_pass'])
-        check_srv.select('INBOX')
+        check_srv.select('inbox')
         _status, unread = check_srv.search(None, '(SUBJECT "[Edukacja.CL] powiadomienie o otrzymaniu nowego komunikatu" UNSEEN)')
     
     if unread[0]:
@@ -186,7 +186,7 @@ def msg_lookup(settings, errors, check_jsos_anyways):
 
         sent_count = 0
         if msgs:
-            send_srv = smtplib.SMTP('student.pwr.edu.pl', 587)
+            send_srv = smtplib.SMTP('smtp.gmail.com', 587)
             send_srv.starttls()
             send_srv.login(settings['smail_user'], settings['smail_pass'])
 
