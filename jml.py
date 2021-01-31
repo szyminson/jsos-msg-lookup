@@ -95,7 +95,7 @@ def check_credentials(settings):
     creds_valid = {'jsos': False, 'smail': True}
     srv_ok = {'jsos': True, 'smail': True}
     try:
-        check_srv = imaplib.IMAP4_SSL('student.pwr.edu.pl', 993)
+        check_srv = imaplib.IMAP4_SSL('imap.gmail.com', 993)
     except:
         srv_ok['smail'] = False
         creds_valid['smail'] = False
